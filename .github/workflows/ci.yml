@@ -34,9 +34,9 @@ jobs:
       - name: SSH to server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{secrets.HOST}}
+          host: 54.174.69.203
           username: ${{vars.USERNAME}}
-          key: ${{secrets.KEY}}
+          key: docker-lab-keypair.pem
           script: |
               docker stop resume || echo ""
               docker rm resume || echo ""
