@@ -35,7 +35,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{secrets.HOST}}
-          username: ${{var.USERNAME}}
+          username: ${{vars.USERNAME}}
           key: ${{secrets.KEY}}
           script: |
               docker stop resume || echo ""
