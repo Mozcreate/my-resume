@@ -38,7 +38,7 @@ jobs:
           username: ${{ vars.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
-            docker stop resume || echo ""
+            docker stop resume || echo " stop "
             docker rm resume || echo ""
             docker pull ${{ secrets.REGISTRY_USERNAME }}/my-image-name:${{ github.run_number }}
             docker run -d --name resume -p 8080:5001 ${{ secrets.REGISTRY_USERNAME }}/my-image-name:${{ github.run_number }}
