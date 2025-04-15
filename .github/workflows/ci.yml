@@ -1,37 +1,44 @@
-name: Resume ci Build
+name: Resume CI Build
+
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image with tag
-      run: docker build . --file Dockerfile --tag my-image-name:${{github.run_number}}
-    - name: Build latest 
-      run: docker build . --file Dockerfile --tag my-image-name
-    - name: Login to Docker hub
-      run: docker login -u ${{secrets.REGISTRY_USERNAME}} -p ${{secrets.REGISTRY_PASS}}
-    - name: Tag image 
-      run: docker tag my-image-name:${{github.run_number}} ${{secrets.REGISTRY_USERNAME}}/my-image-name:${{github.run_number}}
-    - name: Push Image 
-      run: docker push  ${{secrets.REGISTRY_USERNAME}}/my-image-name:${{github.run_number}}
+      - uses: actions/checkout@v4
 
+      - name: Build the Docker image with version and latest tag
+        run: |
+          docker build . -f Dockerfile -t my-image-name:${{ github.run_number }} -t my-image-name:latest
 
-  deploy:
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.REGISTRY_PASS }}" | docker login -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+
+      - name: Tag image for Docker Hub
+        run: docker tag my-image-name:${{ github.run_number }} ${{ secrets.REGISTRY_USERNAME }}/my-image-name:${{ github.run_number }}
+
+      - name: Push image to Docker Hub
+        run: docker push ${{ secrets.REGISTRY_USERNAME }}/my-image-name:${{ github.run_number }}
+
+  Deploy:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
-      - name: SSH to Server 
+      - name: SSH to Server and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{secrets.HOST}}
-          username: ${{vars.username}}
-          key: ${{secrets.KEY}}
+          host: ${{ secrets.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.KEY }}
           script: |
-              docker stop resume || echo ""
-              docker rm resume || echo ""
-              docker run -d --name resume -p 8080:5001 ${{secrets.REGISTRY_USERNAME}}/my-image-name:${{github.run_number}}
+            docker stop resume || echo ""
+            docker rm resume || echo ""
+            docker pull ${{ secrets.REGISTRY_USERNAME }}/my-image-name:${{ github.run_number }}
+            docker run -d --name resume -p 8080:5001 ${{ secrets.REGISTRY_USERNAME }}/my-image-name:${{ github.run_number }}
