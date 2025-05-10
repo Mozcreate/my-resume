@@ -32,9 +32,9 @@ jobs:
       - name: SSH to Server and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ vars.USERNAME }}
-          key: ${{ secrets.KEY }}
+          host: ${{secrets.HOST}}
+          username: ${{vars.USERNAME}}
+          key: ${{secrets.KEY}}
           script: |
               docker stop resume || echo ""
               docker rm resume || echo ""
