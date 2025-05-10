@@ -29,14 +29,14 @@ jobs:
     needs: Build
     runs-on: ubuntu-latest
     steps:
-      - name: SSH to Server
+      - name: SSH to Server and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 54.172.104.55
-          username: ec2-user
-          key: ${{secrets.KEY}}
-          port: 
+          host: ${{ secrets.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.KEY }}
           script: |
               docker stop resume || echo ""
               docker rm resume || echo ""
-              docker run -d docker --name resume -p 8080:5001 ${{secrets.REGISTRY_USERNAME}}/my-image-name:${{github.run_number}}
+              docker pull ${{vars.USERNAME}}/my-image-name:${{ github.run_number}}
+              docker run -d docker --name resume -p 8080:5001 ${{vars.USERNAME}}/my-image-name:${{github.run_number}}
