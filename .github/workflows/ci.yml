@@ -34,7 +34,7 @@ jobs:
         with:
           host: ${{secrets.HOST}}
           username: ${{vars.USERNAME}}
-          key: ${{secrets.KEY}}
+          key: ${{vars.KEY}}
           script: |
               docker stop resume || echo ""
               docker rm resume || echo ""
