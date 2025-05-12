@@ -38,7 +38,7 @@ jobs:
           script: |
               docker stop resume || echo ""
               docker rm resume || echo ""
-              docker pull ${{vars.USERNAME}}/my-image-name:${{ github.run_number}}
-              docker run -d docker --name resume -p 8080:5001 ${{vars.USERNAME}}/my-image-name:${{github.run_number}}
+              docker pull ec2-user/my-image-name:${{ github.run_number}}
+              docker run -d docker --name resume -p 8080:5001 ec2-user/my-image-name:${{github.run_number}}
 
               
