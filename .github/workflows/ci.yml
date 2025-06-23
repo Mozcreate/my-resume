@@ -32,7 +32,7 @@ jobs:
       - name: SSH to Server and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 44.201.163.236
+          host: 18.205.103.52
           username: ec2-user
           key: ${{secrets.KEY}}
           script: |
