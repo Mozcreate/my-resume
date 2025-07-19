@@ -1,5 +1,12 @@
   ECR_REPO_NAME: dev
   IMAGE_TAG: ${{ github.run_number}}
+  
+  on:
+    push:
+      branches: [ "main" ]
+     pull_request:
+      branches: [ "main" ]
+    
 
 
 jobs:
