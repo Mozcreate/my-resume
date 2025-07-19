@@ -1,40 +1,51 @@
-  ECR_REPO_NAME: dev
-  IMAGE_TAG: ${{ github.run_number}}
-  
-  on:
-    push:
-      branches: [ "main" ]
-     pull_request:
-      branches: [ "main" ]
-    
+name: Build, Push, and Deploy Image
 
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE: ${{ secrets.AWS_ACTION_ROLE }}
+  ECR_REPO_NAME: dev
+  IMAGE_TAG: ${{ github.run_number }}
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # guthub runner
+    runs-on: ubuntu-latest
+
     steps:
-      - name: clone repo
+      - name: Clone repository
         uses: actions/checkout@v3
-      - name: Aws creds config 
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE }}     # OIDC
-          aws-region: ${{ env.AWS_REGION}}
-      - name: Loging to ecr 
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
         id: ecr-login
-      - name: Build and tag  image 
-        id: build-and-push
+
+      - name: Build Docker image
         run: |
-            docker build -t ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}} .
-            
-      - name: Scan docker Image for vulnerabilities
+          docker build -t ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env.IMAGE_TAG }} .
+
+      - name: Scan Docker image for vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}}"  # Scans the built image
+          image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env.IMAGE_TAG }}"
           format: "table"
           exit-code: "0"
           severity: "CRITICAL,HIGH"
-      - name: Push image to ecr
+
+      - name: Push Docker image to Amazon ECR
         run: |
-          docker push ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}}
+          docker push ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env.IMAGE_TAG }}
