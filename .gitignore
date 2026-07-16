@@ -1,4 +1,10 @@
-
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+crash.log
 __pycache__/
 venv/
 terraform.tfstate
