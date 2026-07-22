@@ -24,11 +24,12 @@ env:
 jobs:
   Build:
     runs-on: ubuntu-latest
-    outputs:  # Define outputs for the Deploy job
+    outputs:
       image-uri: ${{ steps.set-image.outputs.image-uri }}
+      has_vulnerabilities: ${{ steps.security-report.outputs.has_vulnerabilities }}
     steps:
       - name: Clone repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: AWS Creds Config 
         uses: aws-actions/configure-aws-credentials@v4
@@ -39,6 +40,7 @@ jobs:
       - name: Login to ECR 
         uses: aws-actions/amazon-ecr-login@v1
         id: ecr-login
+
       - name: FS Scan with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -74,15 +76,15 @@ jobs:
           echo "image-uri=$IMAGE_URI" >> $GITHUB_OUTPUT
 
       - name: Post Fix Suggestions on PR
+        id: security-report
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Use require() to import Node.js modules
             const fs = require('fs');
             
             try {
-              // Read file synchronously (use async methods if preferred)
               const fsReport = JSON.parse(fs.readFileSync('trivy-fs-results.json', 'utf8'));
               const imageReport = JSON.parse(fs.readFileSync('trivy-image-results.json', 'utf8'));
               
@@ -93,26 +95,63 @@ jobs:
                 **Advisory:** ${v.PrimaryURL || 'N/A'}
               `).join('\n');
 
-              const fsVulns = fsReport.Results?.flatMap(r => r.Vulnerabilities || []);
-              const imageVulns = imageReport.Results?.flatMap(r => r.Vulnerabilities || []);
+              const fsVulns = fsReport.Results?.flatMap(r => r.Vulnerabilities || []) || [];
+              const imageVulns = imageReport.Results?.flatMap(r => r.Vulnerabilities || []) || [];
 
-              let comment = '## 🔍 Trivy Security Report\n';
-              if (fsVulns.length > 0) comment += `### 📂 Filesystem Vulnerabilities\n${formatVulns(fsVulns)}\n`;
-              if (imageVulns.length > 0) comment += `### 🐳 Docker Image Vulnerabilities\n${formatVulns(imageVulns)}\n`;
-              if (fsVulns.length + imageVulns.length === 0) comment += '✅ No critical/high vulnerabilities found.';
+              let comment = '## 🔍 Trivy Security Report\n\n';
+              if (fsVulns.length > 0) {
+                comment += `### 📂 Filesystem Vulnerabilities (${fsVulns.length})\n${formatVulns(fsVulns)}\n\n`;
+              }
+              if (imageVulns.length > 0) {
+                comment += `### 🐳 Docker Image Vulnerabilities (${imageVulns.length})\n${formatVulns(imageVulns)}\n\n`;
+              }
+              if (fsVulns.length + imageVulns.length === 0) {
+                comment += '✅ No critical/high vulnerabilities found.';
+              }
 
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
+              const prNumber = context.payload.pull_request.number;
+              
+              // Find existing comment
+              const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: comment
+                issue_number: prNumber,
               });
+
+              const botComment = comments.find(c => 
+                c.user.type === 'Bot' && c.body.includes('🔍 Trivy Security Report')
+              );
+
+              if (botComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: comment
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  issue_number: prNumber,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: comment
+                });
+              }
+
+              // Set outputs
+              const totalVulns = fsVulns.length + imageVulns.length;
+              core.setOutput('vulnerability_count', totalVulns.toString());
+              core.setOutput('has_vulnerabilities', (totalVulns > 0).toString());
+
             } catch (error) {
               core.error('Failed to process Trivy results: ' + error.message);
+              core.setOutput('has_vulnerabilities', 'false');
             }
+
   Deploy:
     runs-on: ubuntu-latest
-    needs: Build  # Depends on Build job
+    needs: Build
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && needs.Build.outputs.has_vulnerabilities != 'true')
     steps:
       - name: AWS Creds Config 
         uses: aws-actions/configure-aws-credentials@v4
@@ -126,8 +165,12 @@ jobs:
       
       - name: Update task definition with new ECR image
         run: |
-          jq --arg IMAGE_URI "${{ needs.Build.outputs.image-uri }}" '.containerDefinitions[0].image = $IMAGE_URI | 
-          del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)' task-definition.json > register-task-definition.json
+          jq --arg IMAGE_URI "${{ needs.Build.outputs.image-uri }}" \
+            '.containerDefinitions[0].image = $IMAGE_URI | 
+             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, 
+                 .compatibilities, .registeredAt, .registeredBy, .deregisteredAt,
+                 .lastRegisteredAt, .registeredAt)' \
+            task-definition.json > register-task-definition.json
       
       - name: Register new task definition
         run: |
