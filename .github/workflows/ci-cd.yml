@@ -78,7 +78,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            // Use require() to import Node.js modules
+            // Use require() to import Node.js 
             const fs = require('fs');
             
             try {
